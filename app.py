@@ -258,10 +258,9 @@ with st.sidebar:
     st.header("Configuration")
     sample_every_sec = st.slider("Analyze one frame every N seconds", 1, 10, 2)
     max_minutes = st.slider("Analyze up to N minutes", 1, 20, 5)
+    uploaded_video = st.file_uploader("Optional: upload video", type=["mp4", "mov", "avi", "mkv"])
     st.markdown("**Metrics included**")
     st.write("Attendance proxy, floor activity, idle clustering, congestion, compliance/visibility, and productivity proxy.")
-
-uploaded_video = st.file_uploader("Upload warehouse CCTV / floor operations video", type=["mp4", "mov", "avi", "mkv"])
 
 video_path = None
 if uploaded_video is not None:
@@ -270,7 +269,7 @@ elif DEFAULT_VIDEO.exists():
     video_path = str(DEFAULT_VIDEO)
 
 if not video_path:
-    st.warning("Upload a warehouse operations video or place 'HRMS & Ground ops.mp4' in the repo root.")
+    st.warning("Please upload a video from the sidebar or place 'HRMS & Ground ops.mp4' in the repo root.")
     st.stop()
 
 left, right = st.columns([1.2, 1])
