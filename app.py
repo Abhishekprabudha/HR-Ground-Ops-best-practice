@@ -257,7 +257,7 @@ def answer_query(query: str, df: pd.DataFrame, summary: dict, events: list[dict]
 with st.sidebar:
     st.header("Configuration")
     sample_every_sec = st.slider("Analyze one frame every N seconds", 1, 10, 2)
-    max_minutes = st.slider("Analyze up to N minutes", 1, 20, 5)
+    max_minutes = st.slider("Analyze up to N minutes", 6, 20, 6)
     uploaded_video = st.file_uploader("Optional: upload video", type=["mp4", "mov", "avi", "mkv"])
     st.markdown("**Metrics included**")
     st.write("Attendance proxy, floor activity, idle clustering, congestion, compliance/visibility, and productivity proxy.")
@@ -280,6 +280,10 @@ with left:
 
 with st.spinner("Analyzing video for workforce and HR operations signals..."):
     df, summary, events = analyze_video(video_path, sample_every_sec, max_minutes)
+
+if len(df) <= 5:
+    st.error("The number of analyzed data points must be higher than 5. Increase analysis duration or lower sampling interval.")
+    st.stop()
 
 with right:
     st.subheader("📌 Executive Snapshot")
