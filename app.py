@@ -276,7 +276,7 @@ left, right = st.columns([1.2, 1])
 
 with left:
     st.subheader("🎥 CCTV / Ground Operations Video")
-    st.video(video_path)
+    st.video(video_path, start_time=0, loop=True, autoplay=True, muted=True)
 
 with st.spinner("Analyzing video for workforce and HR operations signals..."):
     df, summary, events = analyze_video(video_path, sample_every_sec, max_minutes)
