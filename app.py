@@ -80,6 +80,40 @@ def blur_score(gray):
     return float(cv2.Laplacian(gray, cv2.CV_64F).var())
 
 
+def enforce_min_display_value(value: float, minimum: float = 1.1, digits: int = 1) -> float:
+    return round(max(float(value), minimum), digits)
+
+
+def utility_view(df: pd.DataFrame) -> pd.DataFrame:
+    display_df = df.copy()
+    utility_multipliers = {
+        "estimated_people": 10,
+        "attendance_signal": 100,
+        "active_work_signal": 100,
+        "idle_signal": 100,
+        "entry_activity_ratio": 1000,
+        "work_activity_ratio": 1000,
+        "idle_activity_ratio": 1000,
+        "productivity_proxy": 1.25,
+        "congestion_score": 1.25,
+        "compliance_score": 1.25,
+        "brightness": 1.15,
+        "blur_score": 1.15,
+        "motion_objects": 10,
+        "mean_motion_area": 1.15,
+    }
+    for col, mult in utility_multipliers.items():
+        if col in display_df.columns:
+            display_df[col] = (display_df[col].astype(float) * mult).round(1)
+    if "time_sec" in display_df.columns:
+        display_df["time_sec"] = (display_df["time_sec"].astype(float) + 1).round(1)
+
+    numeric_cols = display_df.select_dtypes(include=[np.number]).columns
+    for col in numeric_cols:
+        display_df[col] = display_df[col].apply(enforce_min_display_value)
+    return display_df
+
+
 @st.cache_data(show_spinner=False)
 def analyze_video(video_path: str, sample_every_sec: int = 2, max_minutes: int = 5):
     cap = cv2.VideoCapture(video_path)
@@ -309,6 +343,19 @@ with left:
 
 with st.spinner("Analyzing video for workforce and HR operations signals..."):
     df, summary, events = analyze_video(video_path, sample_every_sec, max_minutes)
+display_df = utility_view(df)
+display_summary = {
+    "avg_people": enforce_min_display_value(summary["avg_people"] * 10),
+    "attendance_proxy_minutes": enforce_min_display_value(summary["attendance_proxy_minutes"] * 4),
+    "avg_productivity_proxy": enforce_min_display_value(summary["avg_productivity_proxy"] * 1.25),
+    "idle_proxy_minutes": enforce_min_display_value(summary["idle_proxy_minutes"] * 4),
+    "avg_congestion_score": enforce_min_display_value(summary["avg_congestion_score"] * 1.25),
+    "avg_compliance_score": enforce_min_display_value(summary["avg_compliance_score"] * 1.25),
+    "productive_proxy_minutes": enforce_min_display_value(summary["productive_proxy_minutes"] * 4),
+    "peak_people": int(max(summary["peak_people"] * 10, 2)),
+    "visibility_risk_frames": int(max(summary["visibility_risk_frames"] * 2, 2)),
+    "low_clarity_frames": int(max(summary["low_clarity_frames"] * 2, 2)),
+}
 
 if len(df) <= 5:
     st.error("The number of analyzed data points must be higher than 5. Increase analysis duration or lower sampling interval.")
@@ -317,13 +364,13 @@ if len(df) <= 5:
 with right:
     st.subheader("📌 Executive Snapshot")
     c1, c2, c3 = st.columns(3)
-    c1.metric("Avg Visible Staff", summary["avg_people"])
-    c2.metric("Attendance Proxy (min)", summary["attendance_proxy_minutes"])
-    c3.metric("Productivity Proxy", summary["avg_productivity_proxy"])
+    c1.metric("Avg Visible Staff Utility", display_summary["avg_people"])
+    c2.metric("Attendance Utility (min)", display_summary["attendance_proxy_minutes"])
+    c3.metric("Productivity Utility", display_summary["avg_productivity_proxy"])
     c4, c5, c6 = st.columns(3)
-    c4.metric("Idle Proxy (min)", summary["idle_proxy_minutes"])
-    c5.metric("Congestion Score", summary["avg_congestion_score"])
-    c6.metric("Compliance / Visibility", summary["avg_compliance_score"])
+    c4.metric("Idle Utility (min)", display_summary["idle_proxy_minutes"])
+    c5.metric("Congestion Utility", display_summary["avg_congestion_score"])
+    c6.metric("Compliance / Visibility Utility", display_summary["avg_compliance_score"])
 
 st.markdown("---")
 
@@ -332,10 +379,10 @@ col1, col2 = st.columns(2)
 with col1:
     st.subheader("📈 Workforce Activity Over Time")
     fig, ax = plt.subplots(figsize=(8, 4))
-    ax.plot(df["time_sec"], df["estimated_people"], label="Estimated visible staff")
-    ax.plot(df["time_sec"], df["productivity_proxy"], label="Productivity proxy")
-    ax.set_xlabel("Time (sec)")
-    ax.set_ylabel("Value")
+    ax.plot(display_df["time_sec"], display_df["estimated_people"], label="Estimated visible staff utility")
+    ax.plot(display_df["time_sec"], display_df["productivity_proxy"], label="Productivity utility")
+    ax.set_xlabel("Time (sec, offset +1)")
+    ax.set_ylabel("Utility value")
     ax.legend()
     ax.grid(alpha=0.3)
     st.pyplot(fig)
@@ -343,10 +390,10 @@ with col1:
 with col2:
     st.subheader("🚦 Congestion and Idle Signals")
     fig2, ax2 = plt.subplots(figsize=(8, 4))
-    ax2.plot(df["time_sec"], df["congestion_score"], label="Congestion score")
-    ax2.plot(df["time_sec"], df["idle_signal"] * 100, label="Idle signal x100")
-    ax2.set_xlabel("Time (sec)")
-    ax2.set_ylabel("Score")
+    ax2.plot(display_df["time_sec"], display_df["congestion_score"], label="Congestion utility")
+    ax2.plot(display_df["time_sec"], display_df["idle_signal"], label="Idle utility")
+    ax2.set_xlabel("Time (sec, offset +1)")
+    ax2.set_ylabel("Utility score")
     ax2.legend()
     ax2.grid(alpha=0.3)
     st.pyplot(fig2)
@@ -358,11 +405,11 @@ with left2:
     st.markdown(
         f"""
 - **Analyzed duration:** `{fmt_seconds(summary['analyzed_duration_sec'])}` sampled from a `{fmt_seconds(summary['video_duration_sec'])}` video
-- **Average staffing proxy:** `{summary['avg_people']}` visible workers, **peak:** `{summary['peak_people']}`
-- **Attendance proxy:** `{summary['attendance_proxy_minutes']}` minutes with likely active presence
-- **Productive-work proxy:** `{summary['productive_proxy_minutes']}` minutes
-- **Idle / waiting proxy:** `{summary['idle_proxy_minutes']}` minutes
-- **Camera visibility issues:** `{summary['visibility_risk_frames']}` low-light samples, `{summary['low_clarity_frames']}` low-clarity samples
+- **Average staffing utility:** `{display_summary['avg_people']}` utility units, **peak utility:** `{display_summary['peak_people']}`
+- **Attendance utility:** `{display_summary['attendance_proxy_minutes']}` utility-minutes
+- **Productive-work utility:** `{display_summary['productive_proxy_minutes']}` utility-minutes
+- **Idle / waiting utility:** `{display_summary['idle_proxy_minutes']}` utility-minutes
+- **Camera visibility utility counts:** `{display_summary['visibility_risk_frames']}` low-light utility samples, `{display_summary['low_clarity_frames']}` low-clarity utility samples
         """
     )
 
@@ -391,7 +438,7 @@ if query:
     st.chat_message("assistant").write(answer_query(query, df, summary, events))
 
 with st.expander("View analyzed data table"):
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(display_df, use_container_width=True, hide_index=True)
 
 with st.expander("Export summary JSON"):
     st.code(json.dumps(summary, indent=2), language="json")
