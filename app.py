@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import cv2
 import numpy as np
 import pandas as pd
@@ -277,6 +278,34 @@ left, right = st.columns([1.2, 1])
 with left:
     st.subheader("🎥 CCTV / Ground Operations Video")
     st.video(video_path, start_time=0, loop=True, autoplay=True, muted=True)
+    components.html(
+        """
+        <script>
+        const forceVideoPlayback = () => {
+          const videos = window.parent.document.querySelectorAll("video");
+          videos.forEach((video) => {
+            video.setAttribute("autoplay", "");
+            video.setAttribute("muted", "");
+            video.setAttribute("loop", "");
+            video.setAttribute("playsinline", "");
+            video.setAttribute("webkit-playsinline", "true");
+            video.muted = true;
+            video.loop = true;
+            video.playsInline = true;
+            const playPromise = video.play();
+            if (playPromise && typeof playPromise.catch === "function") {
+              playPromise.catch(() => {});
+            }
+          });
+        };
+
+        forceVideoPlayback();
+        setTimeout(forceVideoPlayback, 400);
+        setInterval(forceVideoPlayback, 2500);
+        </script>
+        """,
+        height=0,
+    )
 
 with st.spinner("Analyzing video for workforce and HR operations signals..."):
     df, summary, events = analyze_video(video_path, sample_every_sec, max_minutes)
